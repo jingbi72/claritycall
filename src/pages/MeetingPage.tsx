@@ -1,51 +1,76 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useMediaStream } from '@/hooks/useMediaStream';
+import { useWebRTC } from '@/hooks/useWebRTC';
+import { useRoomStore } from '@/stores/useRoomStore';
 import { VideoTile } from '@/components/VideoTile';
 import { ControlBar } from '@/components/ControlBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 export function MeetingPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const { stream, error, isLoading, getStream } = useMediaStream();
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(false);
-  const localStream = useMemo(() => {
-    if (!stream) return null;
-    if (isCameraOff) {
-      // Return a stream with only audio if camera is off
-      const audioTracks = stream.getAudioTracks();
-      if (audioTracks.length > 0) {
-        return new MediaStream(audioTracks);
-      }
-      return null;
+  // Local media stream management
+  const { stream: initialStream, error, isLoading, getStream } = useMediaStream();
+  // Zustand store selectors and actions
+  const {
+    localStream,
+    remoteStreams,
+    participants,
+    isMuted,
+    isCameraOff,
+    setLocalStream,
+    toggleMute,
+    toggleCamera,
+    reset,
+  } = useRoomStore(s => ({
+    localStream: s.localStream,
+    remoteStreams: s.remoteStreams,
+    participants: s.participants,
+    isMuted: s.isMuted,
+    isCameraOff: s.isCameraOff,
+    setLocalStream: s.setLocalStream,
+    toggleMute: s.toggleMute,
+    toggleCamera: s.toggleCamera,
+    reset: s.reset,
+  }));
+  // WebRTC hook
+  const { mySessionId } = useWebRTC(roomId!);
+  useEffect(() => {
+    if (initialStream) {
+      setLocalStream(initialStream);
     }
-    return stream;
-  }, [stream, isCameraOff]);
-  const handleToggleMute = () => {
-    if (stream) {
-      stream.getAudioTracks().forEach(track => {
-        track.enabled = !track.enabled;
-      });
-      setIsMuted(prev => !prev);
-    }
-  };
-  const handleToggleCamera = () => {
-    if (stream) {
-      stream.getVideoTracks().forEach(track => {
-        track.enabled = !track.enabled;
-      });
-      setIsCameraOff(prev => !prev);
-    }
-  };
+  }, [initialStream, setLocalStream]);
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+      reset();
+    };
+  }, [reset]);
   const handleEndCall = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
+    reset();
     navigate('/');
   };
+  const allStreams = useMemo(() => {
+    const streams = new Map<string, { stream: MediaStream | null, participant: { name: string } }>();
+    // Add local user
+    streams.set(mySessionId, {
+      stream: localStream,
+      participant: { name: 'You' },
+    });
+    // Add remote users
+    participants.forEach(p => {
+      if (p.sessionId !== mySessionId) {
+        streams.set(p.sessionId, {
+          stream: remoteStreams.get(p.sessionId) || null,
+          participant: { name: p.name },
+        });
+      }
+    });
+    return Array.from(streams.entries());
+  }, [localStream, remoteStreams, participants, mySessionId]);
   if (isLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-background text-foreground">
@@ -75,18 +100,31 @@ export function MeetingPage() {
       </div>
     );
   }
+  const gridCols = `grid-cols-${Math.min(Math.ceil(Math.sqrt(allStreams.length)), 3)}`;
   return (
     <div className="relative h-screen w-full overflow-hidden bg-slate-900 text-white">
-      <div className="absolute inset-0 p-4">
-        <div className="grid h-full w-full grid-cols-1 grid-rows-1 gap-4">
-          <VideoTile stream={localStream} name="You" isLocal={true} isMuted={isMuted} />
+      <div className="absolute inset-0 p-4 flex items-center justify-center">
+        <div className={cn(
+          "grid gap-4 w-full h-full max-w-6xl max-h-[calc(100vh-120px)]",
+          `grid-cols-1 md:grid-cols-2 lg:grid-cols-${Math.min(allStreams.length, 3)}`,
+          allStreams.length > 4 && 'lg:grid-rows-2'
+        )}>
+          {allStreams.map(([sessionId, { stream, participant }]) => (
+            <VideoTile
+              key={sessionId}
+              stream={stream}
+              name={participant.name}
+              isLocal={sessionId === mySessionId}
+              isMuted={sessionId === mySessionId && isMuted}
+            />
+          ))}
         </div>
       </div>
       <ControlBar
         isMuted={isMuted}
         isCameraOff={isCameraOff}
-        onToggleMute={handleToggleMute}
-        onToggleCamera={handleToggleCamera}
+        onToggleMute={toggleMute}
+        onToggleCamera={toggleCamera}
         onEndCall={handleEndCall}
       />
     </div>

@@ -1,19 +1,31 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { v4 as uuidv4 } from 'uuid';
-import { Video, LogIn } from 'lucide-react';
+import { Video, LogIn, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Toaster, toast } from '@/components/ui/sonner';
+import { Toaster, toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { motion } from 'framer-motion';
 export function HomePage() {
   const navigate = useNavigate();
   const [roomId, setRoomId] = useState('');
-  const createNewMeeting = () => {
-    const newRoomId = uuidv4();
-    navigate(`/room/${newRoomId}`);
+  const [isCreating, setIsCreating] = useState(false);
+  const createNewMeeting = async () => {
+    setIsCreating(true);
+    try {
+      // In a real app, you might hit an API endpoint to create/validate a room
+      // For now, we just generate a UUID on the client.
+      // The previous implementation used a POST to /api/rooms which was removed.
+      // Let's stick to client-side generation for simplicity as per original intent.
+      const { v4: uuidv4 } = await import('uuid');
+      const newRoomId = uuidv4();
+      navigate(`/room/${newRoomId}`);
+    } catch (error) {
+      console.error("Failed to create meeting", error);
+      toast.error('Could not create a new meeting. Please try again.');
+      setIsCreating(false);
+    }
   };
   const joinMeeting = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +72,13 @@ export function HomePage() {
                   size="lg"
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-base py-6 transition-all duration-300 transform hover:scale-105"
                   onClick={createNewMeeting}
+                  disabled={isCreating}
                 >
-                  <Video className="mr-2 h-5 w-5" />
+                  {isCreating ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  ) : (
+                    <Video className="mr-2 h-5 w-5" />
+                  )}
                   Create New Meeting
                 </Button>
                 <div className="relative">
@@ -92,7 +109,7 @@ export function HomePage() {
         </div>
       </main>
       <footer className="absolute bottom-8 w-full text-center text-muted-foreground/80">
-        <p>Built with ��️ at Cloudflare</p>
+        <p>Built with ❤️ at Cloudflare</p>
       </footer>
       <Toaster richColors closeButton />
     </div>

@@ -10,15 +10,25 @@ const ICE_SERVERS = {
 };
 export function useWebRTC(roomId: string) {
   const localStream = useRoomStore(s => s.localStream);
-  const participants = useRoomStore(s => s.participants);
-  const addPeerConnection = useRoomStore(s => s.addPeerConnection);
-  const getPeerConnection = useRoomStore(s => s.getPeerConnection);
-  const removePeerConnection = useRoomStore(s => s.removePeerConnection);
-  const addRemoteStream = useRoomStore(s => s.addRemoteStream);
-  const removeRemoteStream = useRoomStore(s => s.removeRemoteStream);
-  const addParticipant = useRoomStore(s => s.addParticipant);
-  const removeParticipant = useRoomStore(s => s.removeParticipant);
-  const setParticipants = useRoomStore(s => s.setParticipants);
+  const {
+    addPeerConnection,
+    getPeerConnection,
+    removePeerConnection,
+    addRemoteStream,
+    removeRemoteStream,
+    addParticipant,
+    removeParticipant,
+    setParticipants,
+  } = useRoomStore(s => ({
+    addPeerConnection: s.addPeerConnection,
+    getPeerConnection: s.getPeerConnection,
+    removePeerConnection: s.removePeerConnection,
+    addRemoteStream: s.addRemoteStream,
+    removeRemoteStream: s.removeRemoteStream,
+    addParticipant: s.addParticipant,
+    removeParticipant: s.removeParticipant,
+    setParticipants: s.setParticipants,
+  }));
   const mySessionId = useRef(uuidv4());
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
   const sendSignal = useCallback(async (message: SignalMessage) => {
@@ -38,7 +48,7 @@ export function useWebRTC(roomId: string) {
       if (event.candidate) {
         sendSignal({
           type: 'ice-candidate',
-          candidate: event.candidate.toJSON(),
+          candidate: event.candidate,
           sender: mySessionId.current,
           recipient: participant.sessionId,
         });
@@ -69,27 +79,30 @@ export function useWebRTC(roomId: string) {
     });
   }, [addParticipant, createPeerConnection, sendSignal]);
   const handleSignalMessage = useCallback(async (message: SignalMessage) => {
-    const { type } = message;
-    const getOrCreatePeerConnection = (sessionId: string) => {
-      let pc = getPeerConnection(sessionId);
-      if (!pc) {
-        console.warn(`Peer connection for ${sessionId} not found, creating one.`);
-        const participant = participants.find(p => p.sessionId === sessionId);
-        if (participant) {
-          pc = createPeerConnection(participant);
-        } else {
-          console.error(`Participant ${sessionId} not found in store.`);
-          return null;
-        }
+    const { sender, type } = message;
+    let pc = getPeerConnection(sender);
+    if (type !== 'offer' && !pc) {
+      console.warn(`Peer connection for ${sender} not found, creating one.`);
+      const senderParticipant = useRoomStore.getState().participants.find(p => p.sessionId === sender);
+      if (senderParticipant) {
+        pc = createPeerConnection(senderParticipant);
+      } else {
+        console.error(`Participant ${sender} not found in store.`);
+        return;
       }
-      return pc;
-    };
+    } else if (!pc && type === 'offer') {
+        const senderParticipant = useRoomStore.getState().participants.find(p => p.sessionId === sender);
+        if (senderParticipant) {
+            pc = createPeerConnection(senderParticipant);
+        } else {
+            console.error(`Participant ${sender} not found in store.`);
+            return;
+        }
+    }
+    if (!pc) return;
     switch (type) {
-      case 'offer': {
-        const { sender, sdp } = message;
-        const pc = getOrCreatePeerConnection(sender);
-        if (!pc) return;
-        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
+      case 'offer':
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: message.sdp }));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         sendSignal({
@@ -99,38 +112,26 @@ export function useWebRTC(roomId: string) {
           recipient: sender,
         });
         break;
-      }
-      case 'answer': {
-        const { sender, sdp } = message;
-        const pc = getPeerConnection(sender);
-        if (pc) {
-          await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
+      case 'answer':
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: message.sdp }));
+        break;
+      case 'ice-candidate':
+        if (message.candidate) {
+          await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
         }
         break;
-      }
-      case 'ice-candidate': {
-        const { sender, candidate } = message;
-        const pc = getPeerConnection(sender);
-        if (pc && candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-        break;
-      }
-      case 'participant-joined': {
+      case 'participant-joined':
         handleNewParticipant(message.participant);
         break;
-      }
-      case 'participant-left': {
-        const { sessionId } = message;
-        removePeerConnection(sessionId);
-        removeRemoteStream(sessionId);
-        removeParticipant(sessionId);
+      case 'participant-left':
+        removePeerConnection(message.sessionId);
+        removeRemoteStream(message.sessionId);
+        removeParticipant(message.sessionId);
         break;
-      }
       default:
         console.warn('Unknown signal type:', type);
     }
-  }, [getPeerConnection, createPeerConnection, sendSignal, handleNewParticipant, removePeerConnection, removeRemoteStream, removeParticipant, participants]);
+  }, [getPeerConnection, createPeerConnection, sendSignal, handleNewParticipant, removePeerConnection, removeRemoteStream, removeParticipant]);
   const pollMessages = useCallback(async () => {
     try {
       const response = await fetch(`/api/rooms/${roomId}/signal?sessionId=${mySessionId.current}`);
@@ -152,9 +153,9 @@ export function useWebRTC(roomId: string) {
         body: JSON.stringify({ sessionId: mySessionId.current, name: 'Guest' }),
       });
       if (response.ok) {
-        const { data } = await response.json() as { data: { participants: Participant[] } };
-        setParticipants(data.participants);
-        data.participants.forEach(p => {
+        const { participants } = await response.json() as { participants: Participant[] };
+        setParticipants(participants);
+        participants.forEach(p => {
           if (p.sessionId !== mySessionId.current) {
             handleNewParticipant(p);
           }
@@ -190,5 +191,5 @@ export function useWebRTC(roomId: string) {
       leaveRoom();
     };
   }, [localStream, joinRoom, leaveRoom]);
-  return { mySessionId: mySessionId.current, leaveRoom };
+  return { mySessionId: mySessionId.current };
 }
