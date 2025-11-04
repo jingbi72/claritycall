@@ -2,7 +2,7 @@
 
 A minimalist, visually stunning, and high-performance video call platform built on Cloudflare Workers and WebRTC for simple, secure, and instant communication.
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/jingbi72/claritycall)
 
 ## About The Project
 
@@ -99,7 +99,7 @@ This project is designed for easy deployment to the Cloudflare network.
 
 Alternatively, you can deploy your own version of this project with a single click.
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/jingbi72/claritycall)
 
 ## Architecture Overview
 
