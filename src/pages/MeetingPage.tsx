@@ -24,7 +24,7 @@ export function MeetingPage() {
   const reset = useRoomStore(s => s.reset);
   const activeSpeakerId = useRoomStore(s => s.activeSpeakerId);
   const setActiveSpeakerId = useRoomStore(s => s.setActiveSpeakerId);
-  const { mySessionId } = useWebRTC(roomId!);
+  const { mySessionId, leaveRoom } = useWebRTC(roomId!);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserNodesRef = useRef<Map<string, { analyser: AnalyserNode, dataArray: Uint8Array, source: MediaStreamAudioSourceNode }>>(new Map());
   const speakingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -84,6 +84,7 @@ export function MeetingPage() {
     };
   }, [reset]);
   const handleEndCall = () => {
+    leaveRoom();
     navigate('/');
   };
   const allParticipants = useMemo(() => {

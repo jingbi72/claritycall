@@ -1,3 +1,11 @@
+// This type is available in the browser's global scope, but we define it here
+// for type safety and consistency between the client and worker environments.
+export interface RTCIceCandidateInit {
+  candidate?: string | null;
+  sdpMid?: string | null;
+  sdpMLineIndex?: number | null;
+  usernameFragment?: string | null;
+}
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;

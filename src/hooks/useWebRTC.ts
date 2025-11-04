@@ -190,5 +190,5 @@ export function useWebRTC(roomId: string) {
       leaveRoom();
     };
   }, [localStream, joinRoom, leaveRoom]);
-  return { mySessionId: mySessionId.current };
+  return { mySessionId: mySessionId.current, leaveRoom };
 }
