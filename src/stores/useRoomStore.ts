@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { Participant } from '@shared/types';
-export type PeerConnection = {
-  connection: RTCPeerConnection;
-  participant: Participant;
-};
 type RoomState = {
   localStream: MediaStream | null;
   remoteStreams: Map<string, MediaStream>;
@@ -12,6 +8,7 @@ type RoomState = {
   peerConnections: Map<string, RTCPeerConnection>;
   isMuted: boolean;
   isCameraOff: boolean;
+  activeSpeakerId: string | null;
 };
 type RoomActions = {
   setLocalStream: (stream: MediaStream | null) => void;
@@ -25,6 +22,7 @@ type RoomActions = {
   getPeerConnection: (sessionId: string) => RTCPeerConnection | undefined;
   toggleMute: () => void;
   toggleCamera: () => void;
+  setActiveSpeakerId: (sessionId: string | null) => void;
   reset: () => void;
 };
 const initialState: RoomState = {
@@ -34,6 +32,7 @@ const initialState: RoomState = {
   peerConnections: new Map(),
   isMuted: false,
   isCameraOff: false,
+  activeSpeakerId: null,
 };
 export const useRoomStore = create<RoomState & RoomActions>()(
   immer((set, get) => ({
@@ -107,6 +106,11 @@ export const useRoomStore = create<RoomState & RoomActions>()(
             track.enabled = !newCameraOffState;
           });
         }
+      });
+    },
+    setActiveSpeakerId: (sessionId) => {
+      set((state) => {
+        state.activeSpeakerId = sessionId;
       });
     },
     reset: () => {

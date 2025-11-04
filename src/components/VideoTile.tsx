@@ -7,8 +7,9 @@ interface VideoTileProps {
   name: string;
   isLocal?: boolean;
   isMuted?: boolean;
+  isSpeaking?: boolean;
 }
-export function VideoTile({ stream, name, isLocal = false, isMuted = false }: VideoTileProps) {
+export function VideoTile({ stream, name, isLocal = false, isMuted = false, isSpeaking = false }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     if (videoRef.current && stream) {
@@ -16,7 +17,10 @@ export function VideoTile({ stream, name, isLocal = false, isMuted = false }: Vi
     }
   }, [stream]);
   return (
-    <Card className="relative aspect-video w-full overflow-hidden rounded-lg bg-card shadow-md transition-all duration-300">
+    <Card className={cn(
+      "relative aspect-video w-full overflow-hidden rounded-lg bg-card shadow-md transition-all duration-300",
+      isSpeaking && "ring-4 ring-offset-2 ring-offset-slate-900 ring-indigo-500"
+    )}>
       <CardContent className="p-0 h-full w-full">
         {stream ? (
           <video
